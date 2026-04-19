@@ -1,7 +1,14 @@
 //! 控制模块 - 负责机器人运动控制
 
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
+
+mod foot_contact;
+mod pd_controller;
+mod walking;
+
+pub use foot_contact::{foot_contact_detection, FootContact};
+pub use pd_controller::pd_standing_control;
+pub use walking::{walking_control, WalkingGait};
 
 /// 相机控制器组件
 #[derive(Component)]
@@ -19,7 +26,7 @@ impl Default for CameraController {
     }
 }
 
-/// 相机旋转系统
+/// 相机旋转系统（鼠标右键拖动）
 pub fn camera_control(
     mut query: Query<&mut Transform, With<CameraController>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
@@ -30,42 +37,9 @@ pub fn camera_control(
             for motion in mouse_motion.read() {
                 let yaw = -motion.delta.x * 0.003;
                 let pitch = -motion.delta.y * 0.003;
-
                 transform.rotate_around(Vec3::ZERO, Quat::from_rotation_y(yaw));
                 transform.rotate_local_x(pitch);
             }
-        }
-    }
-}
-
-/// 机器人键盘控制
-pub fn robot_keyboard_control(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut ExternalForce, With<crate::models::humanoid::Torso>>,
-) {
-    for mut force in query.iter_mut() {
-        let mut direction = Vec3::ZERO;
-
-        if keyboard.pressed(KeyCode::KeyW) {
-            direction.z -= 1.0;
-        }
-        if keyboard.pressed(KeyCode::KeyS) {
-            direction.z += 1.0;
-        }
-        if keyboard.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0;
-        }
-        if keyboard.pressed(KeyCode::KeyD) {
-            direction.x += 1.0;
-        }
-        if keyboard.pressed(KeyCode::Space) {
-            direction.y += 1.0;
-        }
-
-        if direction.length() > 0.0 {
-            force.force = direction.normalize() * 50.0;
-        } else {
-            force.force = Vec3::ZERO;
         }
     }
 }
