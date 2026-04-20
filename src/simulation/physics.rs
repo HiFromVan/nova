@@ -28,16 +28,11 @@ pub fn setup_physics(
     commands.spawn((
         RigidBody::Fixed,
         Collider::cuboid(10.0, 0.1, 10.0),
+        Friction::coefficient(0.7),  // 添加摩擦力
         Mesh3d(meshes.add(Cuboid::new(20.0, 0.2, 20.0))),
         MeshMaterial3d(materials.add(Color::srgb(0.4, 0.4, 0.4))),
         Transform::from_xyz(0.0, -0.1, 0.0),
     ));
 
-    // 测试立方体 - 在机器人应该在的位置
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
-        MeshMaterial3d(materials.add(Color::srgb(1.0, 0.0, 0.0))),
-        Transform::from_xyz(0.0, 1.0, 0.0),
-    ));
-    println!("=== Test cube spawned at (0, 1, 0) ===");
+    println!("=== Physics setup complete ===");
 }

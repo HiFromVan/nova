@@ -52,7 +52,7 @@ pub fn pd_standing_control(
             revolute
                 .set_motor_model(MotorModel::AccelerationBased)
                 .set_motor(target_angle, 0.0, ctrl.kp, ctrl.kd)
-                .set_motor_max_force(300.0);
+                .set_motor_max_force(500.0);  // 增加最大力量
         }
     }
 }

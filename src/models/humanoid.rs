@@ -172,12 +172,14 @@ pub fn spawn_humanoid_with_config(
         Humanoid, Torso,
         RigidBody::Dynamic,
         Collider::cuboid(torso_hx, torso_hy, torso_hz),
+        Damping { linear_damping: 0.8, angular_damping: 2.0 },  // 增加阻尼
+        AdditionalMassProperties::Mass(10.0),  // 增加质量稳定性
         Mesh3d(meshes.add(Cuboid::new(torso_hx * 2.0, torso_hy * 2.0, torso_hz * 2.0))),
         MeshMaterial3d(mat_body.clone()),
         Transform::from_xyz(0.0, torso_cy, 0.0),
         Visibility::default(),
         JointTargets::default(),
-        JointController::default(),
+        JointController { kp: 300.0, kd: 30.0 },  // 更强的控制
         crate::control::WalkingGait::default(),
     )).id();
 
@@ -207,7 +209,7 @@ pub fn spawn_humanoid_with_config(
             .local_anchor1(Vec3::new(-c.shoulder_w(), torso_hy * 0.6, 0.0))
             .local_anchor2(Vec3::new(0.0, arm_hy, 0.0))
             .limits([-1.5, 1.5])
-            .motor_max_force(200.0)),
+            .motor_max_force(500.0)),  // 增加电机力量
         Joint::LeftShoulderPitch, MotorTarget(0.0),
     )).id();
 
@@ -269,7 +271,7 @@ pub fn spawn_humanoid_with_config(
             .local_anchor1(Vec3::new(-c.hip_w(), -torso_hy, 0.0))
             .local_anchor2(Vec3::new(0.0, thigh_hy, 0.0))
             .limits([-1.5, 1.5])
-            .motor_max_force(400.0)),
+            .motor_max_force(800.0)),  // 腿部需要更大力量
         Joint::LeftHipPitch, MotorTarget(0.0),
     )).id();
 
@@ -284,7 +286,7 @@ pub fn spawn_humanoid_with_config(
             .local_anchor1(Vec3::new(0.0, -thigh_hy, 0.0))
             .local_anchor2(Vec3::new(0.0,  shin_hy,  0.0))
             .limits([0.0, 2.5])
-            .motor_max_force(400.0)),
+            .motor_max_force(800.0)),  // 膝盖也需要大力量
         Joint::LeftKnee, MotorTarget(0.0),
     )).id();
 
@@ -313,7 +315,7 @@ pub fn spawn_humanoid_with_config(
             .local_anchor1(Vec3::new(c.hip_w(), -torso_hy, 0.0))
             .local_anchor2(Vec3::new(0.0, thigh_hy, 0.0))
             .limits([-1.5, 1.5])
-            .motor_max_force(400.0)),
+            .motor_max_force(800.0)),
         Joint::RightHipPitch, MotorTarget(0.0),
     )).id();
 
@@ -328,7 +330,7 @@ pub fn spawn_humanoid_with_config(
             .local_anchor1(Vec3::new(0.0, -thigh_hy, 0.0))
             .local_anchor2(Vec3::new(0.0,  shin_hy,  0.0))
             .limits([0.0, 2.5])
-            .motor_max_force(400.0)),
+            .motor_max_force(800.0)),
         Joint::RightKnee, MotorTarget(0.0),
     )).id();
 
