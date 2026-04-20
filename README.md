@@ -30,8 +30,6 @@ Nova is a humanoid robot project built in Rust, designed to work alongside the [
 | Layer | Technology |
 |-------|-----------|
 | Core language | Rust |
-| ECS / rendering | Bevy 0.15 |
-| Local physics | Rapier3D |
 | Simulation backend | Isaac Lab (Isaac Sim 4.5, NVIDIA) |
 | Brain ↔ Body comms | gRPC (tonic + prost) |
 | RL training | RSL-RL 5.x + PPO |

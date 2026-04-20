@@ -4,20 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rapier3d = "0.22"
-nalgebra = "0.33"
-bevy = { version = "0.15", features = [] }
-bevy_rapier3d = "0.28"
 tonic = "0.12"
 prost = "0.13"
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 tonic-build = "0.12"
-
-[[example]]
-name = "test_mesh"
-path = "examples/test_mesh.rs"
 
 [[example]]
 name = "grpc_client"
