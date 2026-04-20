@@ -4,3 +4,16 @@ Cargo.lock
 *.swo
 *~
 .DS_Store
+
+# Isaac Lab generated proto files
+isaac_env/simulator_pb2.py
+isaac_env/simulator_pb2_grpc.py
+isaac_env/__pycache__/
+
+# Windows installers / scripts
+*.exe
+*.ps1
+isaaclab_minimal.yml
+
+# Claude memory
+.claude/
