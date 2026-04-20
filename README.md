@@ -1,81 +1,122 @@
-# Nova - 通用人形机器人项目
+# Nova — Humanoid Robot Project
 
-Nova 是一个基于 Rust 开发的通用人形机器人项目，旨在结合 [becoming](https://github.com/HiFromVan/becoming) 大脑项目实现完整的人形机器人系统。
+Nova is a humanoid robot project built in Rust, designed to work alongside the [Becoming](https://github.com/HiFromVan/becoming) brain system to form a complete autonomous humanoid robot stack.
 
-## 项目架构
+## Architecture
+
+```
+┌─────────────────────────────┐        ┌──────────────────────────┐
+│  Isaac Lab  (Windows)        │        │  Nova  (Rust)            │
+│                              │        │                          │
+│  Physics simulation          │ gRPC   │  BrainInterface trait    │
+│  H1 humanoid model (USD)     │◄──────►│  BaselineGait            │
+│  RL policy inference         │ :50051 │  High-level decisions    │
+│  isaac_env/server.py         │        │  Hardware abstraction    │
+└─────────────────────────────┘        └──────────────────────────┘
+                                                    ▲
+                                                    │
+                                        ┌───────────┴──────────┐
+                                        │  Becoming  (Mac)     │
+                                        │  Decision / planning │
+                                        └──────────────────────┘
+```
+
+**Isaac Lab** handles physics, rendering, and low-level policy execution on Windows (RTX 3090).  
+**Nova** (this repo) is the execution layer — it receives high-level intent and translates it into motor commands.  
+**Becoming** is the brain — it decides what to do and sends commands via `BrainInterface`.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Core language | Rust |
+| ECS / rendering | Bevy 0.15 |
+| Local physics | Rapier3D |
+| Simulation backend | Isaac Lab (Isaac Sim 4.5, NVIDIA) |
+| Brain ↔ Body comms | gRPC (tonic + prost) |
+| RL training | RSL-RL 5.x + PPO |
+
+## Project Structure
 
 ```
 nova/
 ├── src/
-│   ├── models/          # 机器人模型定义
-│   ├── simulation/      # 物理仿真环境
-│   ├── control/         # 运动控制算法
-│   └── brain_interface/ # 与 becoming 对接的接口（预留）
-├── Cargo.toml
-└── README.md
+│   ├── brain_interface/   # BrainInterface trait + SensorData / MotorCommands types
+│   ├── control/           # Gait, PD controller, keyboard input
+│   ├── models/            # Robot model definitions
+│   └── simulation/        # Physics bridge
+├── examples/
+│   └── grpc_client.rs     # gRPC communication test
+├── isaac_env/
+│   └── server.py          # Isaac Lab gRPC server (Python, runs on Windows)
+├── proto/
+│   └── simulator.proto    # gRPC service definition
+├── build.rs               # Proto compilation
+└── TODO.md                # Roadmap and task tracking
 ```
 
-## 技术栈
+## Getting Started
 
-- **Rust** - 核心开发语言，保证性能和内存安全
-- **Bevy** - 游戏引擎，提供 ECS 架构和渲染能力
-- **Rapier3D** - 物理引擎，实现实时物理仿真
-- **nalgebra** - 线性代数库
+### Prerequisites
 
-## 当前功能
+- Rust 1.95+
+- Isaac Lab installed (Windows, see [Isaac Lab setup](https://isaac-sim.github.io/IsaacLab/))
+- conda environment `isaaclab` with Isaac Sim 4.5
 
-- ✅ 基础项目结构
-- ✅ 简单人形机器人模型（躯干 + 双腿）
-- ✅ 3D 物理仿真环境
-- ✅ 重力和碰撞检测
-- ✅ 实时可视化渲染
+### Run the gRPC communication test
 
-## 快速开始
-
-### 环境要求
-
-- Rust 1.90.0+
-- Cargo
-
-### 运行仿真
+**1. Start the Isaac Lab simulation server (Windows terminal):**
 
 ```bash
-cargo run
+cd E:/IsaacLab
+conda activate isaaclab
+python E:/nova/isaac_env/server.py
 ```
 
-运行后会打开一个 3D 窗口，显示人形机器人在物理环境中的表现。
+Wait for `Isaac Lab gRPC Server 已启动 :50051` in the output.
 
-## 开发路线
+**2. Run the Rust client:**
 
-### 短期目标
-- [ ] 添加关节约束（连接躯干和腿部）
-- [ ] 实现键盘/鼠标控制
-- [ ] 添加更多身体部件（手臂、头部）
-- [ ] 实现基础平衡控制
+```bash
+cd nova
+cargo run --example grpc_client
+```
 
-### 中期目标
-- [ ] 步态生成算法
-- [ ] 轨迹规划
-- [ ] 传感器模拟（IMU、力传感器）
-- [ ] PID 控制器
+Expected output:
+```
+→ Reset
+← pos=(0.00,1.00,0.00) stable=true
+← step 0 pos=(...) joints=[...]
+...
+gRPC 通信测试完成
+```
 
-### 长期目标
-- [ ] 与 becoming 大脑项目对接
-- [ ] 实际硬件驱动支持
-- [ ] 强化学习训练接口
-- [ ] 多机器人协同
+### Regenerate proto bindings (Python side)
 
-## 项目关系
+```bash
+cd nova
+python -m grpc_tools.protoc -I proto --python_out=isaac_env --grpc_python_out=isaac_env proto/simulator.proto
+```
 
-- **Nova**（本项目）：机器人躯体，负责物理仿真、运动控制、硬件驱动
-- **[becoming](https://github.com/HiFromVan/becoming)**：机器人大脑，负责决策、规划、感知
+## How It Works
 
-两个项目通过 `brain_interface` 模块进行通信对接。
+1. `server.py` starts Isaac Lab, loads the pretrained H1 locomotion policy, and exposes a gRPC endpoint
+2. Rust sends `MotorCommands` (desired velocity or joint targets) via `Step` RPC
+3. Isaac Lab runs one simulation step using the RL policy, injecting the desired velocity into the observation
+4. Robot state (`SensorData`: position, orientation, joint angles, foot contacts) is returned to Rust
+5. Rust `BrainInterface` uses the state to compute the next command
 
-## 贡献
+## Relationship to Becoming
 
-欢迎提交 Issue 和 Pull Request！
+- **Nova** (this repo): the robot body — physics, motion control, hardware drivers
+- **[Becoming](https://github.com/HiFromVan/becoming)**: the robot brain — perception, planning, decisions
 
-## 许可证
+Communication goes through the `BrainInterface` trait. Any brain implementation (rule-based `BaselineGait`, neural network, or Becoming) implements `decide(sensors, dt) -> MotorCommands`.
+
+## Roadmap
+
+See [TODO.md](./TODO.md) for the full task list.
+
+## License
 
 MIT
