@@ -1,0 +1,11 @@
+# Isaac Lab 依赖
+# 注意：Isaac Lab 需要单独安装，见 docs/isaac_lab_setup.md
+
+# gRPC 依赖
+grpcio==1.60.0
+grpcio-tools==1.60.0
+protobuf==4.25.1
+
+# 其他依赖
+numpy>=1.24.0
+torch>=2.0.0

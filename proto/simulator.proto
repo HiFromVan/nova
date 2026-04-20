@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package nova.simulator;
+
+// 仿真器服务
+service Simulator {
+  // 单步仿真：发送控制指令，返回传感器数据
+  rpc Step(MotorCommands) returns (SensorData);
+  
+  // 重置仿真环境
+  rpc Reset(ResetRequest) returns (SensorData);
+  
+  // 流式仿真：持续发送控制指令，持续接收传感器数据
+  rpc StreamStep(stream MotorCommands) returns (stream SensorData);
+}
+
+// 传感器数据
+message SensorData {
+  // 时间戳（秒）
+  double timestamp = 1;
+  
+  // 躯干位置 (x, y, z)
+  Vec3 position = 2;
+  
+  // 躯干姿态（四元数）
+  Quat orientation = 3;
+  
+  // 躯干线速度
+  Vec3 velocity = 4;
+  
+  // 躯干角速度
+  Vec3 angular_velocity = 5;
+  
+  // 关节角度（8个关节）
+  // [L_hip, L_knee, R_hip, R_knee, L_shoulder, L_elbow, R_shoulder, R_elbow]
+  repeated float joint_angles = 6;
+  
+  // 关节速度
+  repeated float joint_velocities = 7;
+  
+  // 足部接触状态 [left_foot, right_foot]
+  repeated bool foot_contacts = 8;
+  
+  // 是否稳定（未倒地）
+  bool is_stable = 9;
+}
+
+// 电机控制指令
+message MotorCommands {
+  // 关节目标角度（8个关节）
+  repeated float joint_targets = 1;
+  
+  // 关节力矩（可选，如果为空则使用 PD 控制）
+  repeated float joint_torques = 2;
+  
+  // 期望速度（用于步态生成）
+  Vec3 desired_velocity = 3;
+}
+
+// 重置请求
+message ResetRequest {
+  // 初始位置（可选）
+  Vec3 initial_position = 1;
+  
+  // 初始姿态（可选）
+  Quat initial_orientation = 2;
+  
+  // 是否随机化初始状态
+  bool randomize = 3;
+}
+
+// 3D 向量
+message Vec3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// 四元数
+message Quat {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+  float w = 4;
+}

@@ -79,8 +79,8 @@ impl HumanoidConfig {
 /// Set-point angles for each actuated joint (radians)
 #[derive(Component, Default)]
 pub struct JointTargets {
-    pub head_yaw: f32,
-    pub head_pitch: f32,
+    pub _head_yaw: f32,
+    pub _head_pitch: f32,
     pub l_shoulder_pitch: f32,
     pub l_elbow: f32,
     pub r_shoulder_pitch: f32,
@@ -170,7 +170,7 @@ pub fn spawn_humanoid_with_config(
     // ── Torso (root) ──────────────────────────────────────────────────────
     let torso = commands.spawn((
         Humanoid, Torso,
-        RigidBody::Dynamic,
+        RigidBody::Fixed,  // 暂时固定躯干，先验证步态动作
         Collider::cuboid(torso_hx, torso_hy, torso_hz),
         Damping { linear_damping: 0.8, angular_damping: 2.0 },  // 增加阻尼
         AdditionalMassProperties::Mass(10.0),  // 增加质量稳定性

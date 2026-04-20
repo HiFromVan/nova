@@ -2,26 +2,30 @@
 
 use bevy::prelude::*;
 
+mod brain_control;
 mod foot_contact;
+mod keyboard;
 mod pd_controller;
 mod walking;
 
+pub use brain_control::brain_control_system;
 pub use foot_contact::{foot_contact_detection, FootContact};
+pub use keyboard::keyboard_input_system;
 pub use pd_controller::pd_standing_control;
-pub use walking::{walking_control, WalkingGait};
+pub use walking::WalkingGait;
 
 /// 相机控制器组件
 #[derive(Component)]
 pub struct CameraController {
-    pub sensitivity: f32,
-    pub distance: f32,
+    pub _sensitivity: f32,
+    pub _distance: f32,
 }
 
 impl Default for CameraController {
     fn default() -> Self {
         Self {
-            sensitivity: 0.5,
-            distance: 10.0,
+            _sensitivity: 0.5,
+            _distance: 10.0,
         }
     }
 }

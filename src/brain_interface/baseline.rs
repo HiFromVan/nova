@@ -13,6 +13,7 @@ use bevy::prelude::*;
 /// 1. 验证接口设计
 /// 2. 作为对比基准
 /// 3. 调试和测试
+#[derive(Component)]
 pub struct BaselineGait {
     /// 步态相位（0 到 2π）
     phase: f32,
@@ -102,7 +103,6 @@ impl BaselineGait {
 
         // 生成周期性步态
         let s = self.phase.sin();
-        let c = self.phase.cos();
 
         // 腿部：左右腿相位相反
         let left_hip = s * self.config.hip_swing_amp;
