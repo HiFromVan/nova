@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Step x5
     for i in 0..5 {
         let cmd = MotorCommands {
-            joint_targets: vec![0.1 * i as f32; 8],
+            joint_targets: vec![0.1 * i as f32; 19],
             joint_torques: vec![],
             desired_velocity: Some(Vec3 { x: 0.5, y: 0.0, z: 0.0 }),
         };

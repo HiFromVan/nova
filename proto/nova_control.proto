@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package nova.control;
+
+// Nova 对外暴露的控制接口，Becoming / Demo 作为 client 调用
+service NovaControl {
+  // 高层模式：语义指令
+  rpc Command(SemanticCommand) returns (RobotState);
+
+  // 端到端模式：直接关节角度（对齐 LeRobot 格式）
+  rpc Act(ActionVector) returns (RobotState);
+
+  // 流式订阅机器人状态
+  rpc Subscribe(SubscribeRequest) returns (stream RobotState);
+}
+
+// ── 指令 ──────────────────────────────────────────────────────────────────────
+
+message SemanticCommand {
+  oneof cmd {
+    MoveCommand  move  = 1;
+    StopCommand  stop  = 2;
+    TurnCommand  turn  = 3;
+  }
+  double timestamp = 10;
+}
+
+message MoveCommand {
+  float vx = 1;   // 前进速度 m/s
+  float vy = 2;   // 侧移速度 m/s
+  float wz = 3;   // 转向角速度 rad/s
+}
+
+message StopCommand {}
+
+message TurnCommand {
+  float angle = 1;  // 目标转角 rad
+}
+
+// 端到端模式：19 个关节角度
+message ActionVector {
+  repeated float joint_angles = 1;
+  double timestamp = 2;
+}
+
+message SubscribeRequest {}
+
+// ── 状态反馈 ──────────────────────────────────────────────────────────────────
+
+message RobotState {
+  repeated float qpos          = 1;   // 关节角度 x19
+  repeated float qvel          = 2;   // 关节速度 x19
+  Vec3           position      = 3;
+  Quat           orientation   = 4;
+  Vec3           linear_vel    = 5;
+  Vec3           angular_vel   = 6;
+  repeated bool  foot_contacts = 7;
+  bool           is_stable     = 8;
+  double         timestamp     = 9;
+}
+
+// ── 基础类型 ──────────────────────────────────────────────────────────────────
+
+message Vec3 { float x = 1; float y = 2; float z = 3; }
+message Quat { float x = 1; float y = 2; float z = 3; float w = 4; }

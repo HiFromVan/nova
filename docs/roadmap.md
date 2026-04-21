@@ -1,193 +1,116 @@
 # Nova 开发路线图
 
-> 从零基础到通用人形机器人的理性分阶段规划
-
----
-
 ## 定位
 
 ```
-becoming（Python）          Nova（Rust）
+Becoming（Python）          Nova（Rust）
 ─────────────────           ──────────────────
 大脑：理解世界               身体：执行动作
 视觉 + 语言 + 规划           运动控制 + 硬件驱动
 输出结构化指令               接收指令 + 适配硬件
 ```
 
-Nova 是硬件和大脑之间的标准化中间层，目标是：
+目标：`任何硬件 + Nova + Becoming = 通用机器人`
+
+---
+
+## 当前进度
+
+### ✅ 已完成
+- BrainInterface trait + BaselineGait（fallback 步态）
+- RobotIO trait（硬件抽象层）
+- Nova ↔ Isaac Lab gRPC 仿真接入
+- Nova ↔ 宇树 H1 DDS 真机接入（代码完成）
+- 架构文档 / Becoming 设计文档
+
+### 🚧 进行中
+- Nova gRPC server（接收 Becoming / Demo 指令）
+
+### 📋 待办
+- Demo 客户端（Python，模拟 Becoming 发指令）
+- 安全守卫（关节限位、倒地检测、断连保活）
+- 端到端仿真联调（Mac Nova → Windows Isaac Lab）
+
+---
+
+## 阶段一：全流程跑通（当前目标）
+
+**目标**：一个完整的闭环跑通，Demo 发指令 → Nova 执行 → 仿真反馈
 
 ```
-任何硬件  +  Nova  +  becoming  =  通用机器人
-```
-
----
-
-## 技术栈决策
-
-| 项目 | 语言 | 理由 |
-|------|------|------|
-| Nova | Rust | 实时控制、硬件驱动，性能和安全都需要 |
-| becoming | Python | LLM、视觉模型全是 Python 生态，PyTorch/LangChain |
-| 两者通信 | JSON/TCP → gRPC | 先跑通，后期再规范化 |
-
-**不用 ROS2**，自己定义接口标准，更轻量，更可控。
-
----
-
-## 第一阶段：让仿真里的机器人能动
-
-**目标**：一个能站立、能接收指令移动的仿真机器人
-
-**时间**：1-2 个月
-
-### Nova 要做的
-- [x] 重写 `humanoid.rs`，用 ImpulseJoint 把关节树连起来
-- [x] 实现 PD 控制器，让机器人能站稳
-- [x] 注册 control systems，WASD 键盘控制能走路
-- [x] 实现相机控制（鼠标右键旋转）
-- [x] 足底接触检测
-
-### becoming 要做的
-- 什么都不用做，用键盘代替 becoming 验证控制逻辑
-
-### 这一步的价值
-真正理解机器人控制是怎么回事，建立对物理仿真的直觉。
-
----
-
-## 第二阶段：定义接口，becoming 能发指令
-
-**目标**：becoming 发一条指令，Nova 执行
-
-**时间**：1 个月
-
-### 通信协议（先用最简单的）
-```json
-{"command": "move", "direction": "forward", "speed": 0.5}
-{"command": "turn", "angle": 90}
-{"command": "stand_still"}
-{"command": "grab", "target": "cup"}
+Demo 客户端（Python）
+    │ gRPC
+    ▼
+Nova（Rust，Mac）
+    │ gRPC
+    ▼
+Isaac Lab（Python，Windows）
+    │ 物理仿真
+    ▼
+SensorData 回到 Nova → 回到 Demo
 ```
 
 ### Nova 要做的
-- [ ] TCP 服务器监听指令
-- [ ] 把 JSON 指令映射到运动执行
-- [ ] 把机器人状态序列化反馈给 becoming
+- [x] RobotIO trait + Isaac Lab gRPC 接入
+- [ ] `proto/nova_control.proto` 定义 Nova 对外接口
+- [ ] `src/becoming/mod.rs` gRPC server 监听指令
+- [ ] `src/main.rs` 串联控制环路
 
-### becoming 要做的
-- [ ] TCP 客户端发送指令
-- [ ] 接收机器人状态
+### Demo 客户端要做的
+- [ ] `demo/client.py` Python gRPC 客户端
+- [ ] 发送基本指令：前进 / 停止 / 转向
+- [ ] 打印机器人状态反馈
 
-### 这一步的价值
-两个项目第一次真正联通，接口契约确立。
+### 验收标准
+Demo 发"前进 0.5m/s"→ Isaac Lab 里机器人走起来 → 状态数据回到 Demo 打印出来
 
 ---
 
-## 第三阶段：becoming 接入视觉和语言
+## 阶段二：接入 Becoming
 
-**目标**：说一句话，机器人执行
+**目标**：用 Becoming 替换 Demo 客户端，接口完全兼容
 
-**时间**：2-3 个月
-
-### becoming 要做的
-- [ ] 接入仿真里的虚拟摄像头画面
-- [ ] 接入 LLM（Claude / GPT API）
-- [ ] 语言指令 → 结构化命令 → 发给 Nova
+### Becoming 要做的
+- [ ] gRPC client 连接 Nova（复用 Demo 的 proto）
+- [ ] 接入 LLM（Claude API）
+- [ ] 语音/文字 → 结构化指令 → 发给 Nova
 
 ### Nova 要做的
-- [ ] 虚拟摄像头（Bevy 渲染到 texture）
-- [ ] 更丰富的指令集支持
+- [ ] 安全守卫（关节限位、倒地检测、断连保活）
+- [ ] 状态流式推送给 Becoming
 
-### 这一步的价值
-有了可以演示的 demo，语言驱动机器人。
-
----
-
-## 第四阶段：接真实硬件
-
-**目标**：仿真验证过的控制逻辑跑在真机上
-
-**前提**：前三阶段完成后自然水到渠成
-
-### 设计原则
-控制逻辑完全不变，只换 Hardware trait 的实现：
-
-```rust
-// 仿真
-let hw = SimulatedHardware::new(&rapier_context);
-
-// 真机（宇树 G1）
-let hw = UnitreeHardware::new("/dev/can0");
-```
-
-### 硬件入门路径
-1. 买单关节电机套件（Dynamixel XL430，~$50）练手
-2. 组装一条腿（3 个关节）
-3. 把仿真里的腿控制代码移植到真实硬件
-4. 全身
+### 验收标准
+说"向前走"→ Becoming 解析 → Nova 执行 → 仿真里机器人走
 
 ---
 
-## 接口标准设计（两种模式）
+## 阶段三：接入视觉
 
-Nova 同时支持高层模式和端到端模式，becoming 根据能力选择：
+**目标**：Becoming 看到场景，理解后执行
 
-**高层模式**（becoming 做规划，Nova 做执行）
-```
-becoming 输出：MoveTo / Grab / Speak 等语义指令
-Nova 负责：把语义指令转成运动序列
-```
-
-**端到端模式**（becoming 直接输出关节控制）
-```
-becoming 输出：关节角度数组
-Nova 负责：直接写入执行器
-```
+### Becoming 要做的
+- [ ] 接入摄像头（仿真虚拟摄像头 / 真机摄像头）
+- [ ] VLM 理解场景（LLaVA / PaliGemma）
+- [ ] 视觉 + 语言 → 任务规划 → 指令
 
 ---
 
-## 与 LeRobot 的对齐策略
+## 阶段四：真机测试
 
-HuggingFace LeRobot 的架构和 Nova+becoming 高度对应：
+**前提**：阶段一二三在仿真里验证通过
 
-| LeRobot | Nova + becoming |
-|---------|-----------------|
-| Policy（ACT / Diffusion Policy） | becoming（大脑） |
-| Robot env（执行动作） | Nova（身体） |
-| Observation space | Nova 状态反馈 |
-| Action space | 关节角度数组 |
+### 要做的
+- [ ] Nova 切换到 DDS 真机模式（`--real` flag，代码已写好）
+- [ ] 仿真验证过的指令集在真机上测试
+- [ ] 安全守卫压测
 
-### 数据格式对齐（阶段二接口设计时落地）
-
-端到端模式的接口直接对齐 LeRobot 约定，becoming 将来可以零改动跑 LeRobot 的 policy：
-
-```json
-// 指令（becoming → Nova）
-{"action": [0.1, -0.2, 0.5, ...]}
-
-// 状态反馈（Nova → becoming）
-{"observation": {"qpos": [...], "qvel": [...]}}
-```
-
-### 数据集格式（阶段三收集演示数据时落地）
-
-仿真演示数据直接用 LeRobot 的 dataset 格式（parquet + videos），可以直接喂给 LeRobot 训练流程，不用重新造轮子。
-
-### 仿真环境接口（阶段三）
-
-Nova 仿真层暴露标准 gym 接口给 becoming：
-
-```
-reset() → observation
-step(action) → observation, reward, done
-```
-
-这样 becoming 可以直接复用 LeRobot 的训练代码（无需修改）。
+### 验收标准
+Becoming 发指令 → Nova DDS → H1 真机走起来
 
 ---
 
-## 现在马上要做的一件事
+## 阶段五：端到端 VLA（后期）
 
-**把仿真里的机器人关节连起来，让它能站稳。**
-
-其他都是后话。
+- [ ] Becoming 训练 VLA 模型
+- [ ] 端到端模式：摄像头 + 语言 → 关节角度数组
+- [ ] 对齐 LeRobot 接口，复用训练 pipeline

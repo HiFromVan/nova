@@ -91,15 +91,10 @@ class SimulatorServicer(simulator_pb2_grpc.SimulatorServicer):
         jpos = d.joint_pos[0]       # (19,)
         jvel = d.joint_vel[0]       # (19,)
 
-        # 足部接触：ankle_link 索引 3,8（来自日志）
-        contact = self.env.unwrapped.scene["contact_forces"]
-        forces = contact.data.net_forces_w[0]  # (num_bodies, 3)
-        left_contact = bool(forces[3].norm() > 1.0)
-        right_contact = bool(forces[8].norm() > 1.0)
-
-        # 稳定性：torso 没有接触地面
-        torso_contact = bool(forces[9].norm() > 1.0)
-        is_stable = not torso_contact
+        # 足部接触：用躯干高度估算（z > 0.3 认为站立）
+        left_contact = bool(pos[2].item() > 0.3)
+        right_contact = bool(pos[2].item() > 0.3)
+        is_stable = bool(pos[2].item() > 0.3)
 
         return simulator_pb2.SensorData(
             timestamp=time.time(),

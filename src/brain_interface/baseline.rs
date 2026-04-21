@@ -68,7 +68,9 @@ impl BrainInterface for BaselineGait {
         self.target_velocity = [0.0; 3];
     }
 
-    fn name(&self) -> &str {
-        "BaselineGait"
+    fn name(&self) -> &str { "BaselineGait" }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
     }
 }

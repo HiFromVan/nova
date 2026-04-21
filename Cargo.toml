@@ -4,9 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# gRPC (仿真用)
 tonic = "0.12"
 prost = "0.13"
+
+# async
 tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+async-trait = "0.1"
+
+# DDS (Unitree H1 真机通信)
+dust_dds = "0.9"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
 
 [build-dependencies]
 tonic-build = "0.12"
