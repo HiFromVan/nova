@@ -81,6 +81,16 @@ pub async fn run(
             brain.decide(&sensors, dt)
         };
 
+        // 调试：打印关节角度
+        if step % (hz * 2) == 0 && cmd.joint_targets.len() >= 4 {
+            println!(
+                "[nova] 关节角度: L_hip={:.2} L_knee={:.2} R_hip={:.2} R_knee={:.2} vel=[{:.2},{:.2},{:.2}]",
+                cmd.joint_targets[0], cmd.joint_targets[1],
+                cmd.joint_targets[2], cmd.joint_targets[3],
+                target_vel[0], target_vel[1], target_vel[2],
+            );
+        }
+
         sensors = robot.step(&cmd).await;
         let _ = state_tx.send(sensors.clone());
 

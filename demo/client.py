@@ -58,30 +58,43 @@ def cmd_stop(stub):
 
 
 def run_auto(stub):
-    """预设测试序列：前进 → 转向 → 停止"""
-    print("\n[demo] === 自动测试序列 ===")
+    """持续四处走动：前进 → 右转 → 前进 → 左转 → 循环"""
+    print("\n[demo] === 持续走动模式（Ctrl+C 停止）===")
 
-    print("\n[demo] 1. 前进 0.5 m/s，持续 5s")
-    for _ in range(10):
-        cmd_move(stub, vx=0.5)
-        time.sleep(0.5)
+    try:
+        cycle = 0
+        while True:
+            cycle += 1
+            print(f"\n[demo] === 循环 {cycle} ===")
 
-    print("\n[demo] 2. 左转，持续 3s")
-    for _ in range(6):
-        cmd_move(stub, vx=0.3, wz=0.5)
-        time.sleep(0.5)
+            # 1. 前进 3 秒
+            print("[demo] 前进 0.4 m/s")
+            for _ in range(30):  # 30 * 0.1s = 3s
+                cmd_move(stub, vx=0.4)
+                time.sleep(0.1)
 
-    print("\n[demo] 3. 停止")
-    cmd_stop(stub)
+            # 2. 右转 2 秒
+            print("[demo] 右转")
+            for _ in range(20):  # 20 * 0.1s = 2s
+                cmd_move(stub, vx=0.2, wz=-0.3)
+                time.sleep(0.1)
 
-    print("\n[demo] 4. 订阅状态流（3s）")
-    deadline = time.time() + 3
-    for state in stub.Subscribe(pb.SubscribeRequest()):
-        print_state(state, "stream")
-        if time.time() > deadline:
-            break
+            # 3. 前进 3 秒
+            print("[demo] 前进 0.4 m/s")
+            for _ in range(30):
+                cmd_move(stub, vx=0.4)
+                time.sleep(0.1)
 
-    print("\n[demo] 测试完成 ✓")
+            # 4. 左转 2 秒
+            print("[demo] 左转")
+            for _ in range(20):
+                cmd_move(stub, vx=0.2, wz=0.3)
+                time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print("\n\n[demo] 收到停止信号，停止机器人...")
+        cmd_stop(stub)
+        print("[demo] 已停止 ✓")
 
 
 def run_interactive(stub):

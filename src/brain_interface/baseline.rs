@@ -37,24 +37,31 @@ impl BrainInterface for BaselineGait {
         self.phase = (self.phase + 2.0 * PI * self.frequency * dt) % (2.0 * PI);
         let s = self.phase.sin();
 
-        // Simple sinusoidal gait: left/right legs in antiphase
-        let hip_amp = 0.4_f32;
-        let knee_amp = 0.6_f32;
-        let arm_amp = 0.3_f32;
+        // 调试：每秒打印一次
+        static mut COUNTER: u32 = 0;
+        unsafe {
+            COUNTER += 1;
+            if COUNTER % 50 == 0 {
+                println!("[BaselineGait] phase={:.2} sin={:.2} speed={:.2}", self.phase, s, speed);
+            }
+        }
 
-        // H1 joint order (19 joints):
-        // 0:l_hip_yaw 1:r_hip_yaw 2:torso 3:l_hip_roll 4:r_hip_roll
-        // 5:l_shoulder_pitch 6:r_shoulder_pitch 7:l_hip_pitch 8:r_hip_pitch
-        // 9:l_shoulder_roll 10:r_shoulder_roll 11:l_knee 12:r_knee
-        // 13:l_shoulder_yaw 14:r_shoulder_yaw 15:l_ankle 16:r_ankle
-        // 17:l_elbow 18:r_elbow
-        let mut targets = vec![0.0f32; 19];
-        targets[7] = s * hip_amp;           // l_hip_pitch
-        targets[8] = -s * hip_amp;          // r_hip_pitch
-        targets[11] = if s > 0.0 { s * knee_amp } else { 0.0 }; // l_knee
-        targets[12] = if s < 0.0 { -s * knee_amp } else { 0.0 }; // r_knee
-        targets[5] = -s * arm_amp;          // l_shoulder_pitch
-        targets[6] = s * arm_amp;           // r_shoulder_pitch
+        // Simple sinusoidal gait: left/right legs in antiphase
+        let hip_amp = 0.3_f32;
+        let knee_amp = 0.5_f32;
+        let arm_amp = 0.2_f32;
+
+        // Isaac Lab 期望 8 个关节（见 proto/simulator.proto）:
+        // [L_hip, L_knee, R_hip, R_knee, L_shoulder, L_elbow, R_shoulder, R_elbow]
+        let mut targets = vec![0.0f32; 8];
+        targets[0] = s * hip_amp;                                    // L_hip
+        targets[1] = if s > 0.0 { s * knee_amp } else { 0.0 };      // L_knee
+        targets[2] = -s * hip_amp;                                   // R_hip
+        targets[3] = if s < 0.0 { -s * knee_amp } else { 0.0 };     // R_knee
+        targets[4] = -s * arm_amp;                                   // L_shoulder
+        targets[5] = 0.0;                                            // L_elbow
+        targets[6] = s * arm_amp;                                    // R_shoulder
+        targets[7] = 0.0;                                            // R_elbow
 
         MotorCommands {
             joint_targets: targets,
