@@ -26,7 +26,6 @@ pub enum BecomingCmd {
 }
 
 pub type CmdSender   = watch::Sender<BecomingCmd>;
-pub type CmdReceiver = watch::Receiver<BecomingCmd>;
 pub type StateSender = watch::Sender<SensorData>;
 
 // ── gRPC service 实现 ─────────────────────────────────────────────────────────
@@ -100,7 +99,6 @@ impl NovaControl for NovaControlService {
         &self,
         _req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
-        // 把 SensorData watch 转成 RobotState watch
         let mut state_rx = self.state_rx.clone();
         let (tx, rx) = watch::channel(sensor_to_proto(&state_rx.borrow()));
         tokio::spawn(async move {
@@ -109,7 +107,8 @@ impl NovaControl for NovaControlService {
             }
         });
         let stream = tokio_stream::wrappers::WatchStream::new(rx)
-            .map(|state| Ok(state));
+
+            .map(Ok::<RobotState, Status>);
         Ok(Response::new(Box::pin(stream)))
     }
 }
