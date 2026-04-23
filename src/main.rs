@@ -18,7 +18,7 @@ struct Args {
     real: bool,
 
     /// Isaac Lab gRPC 地址（仿真用）
-    #[arg(long, default_value = "http://127.0.0.1:50051")]
+    #[arg(long, default_value = "http://192.168.50.99:50051")]
     sim_addr: String,
 
     /// DDS domain id（真机用）
