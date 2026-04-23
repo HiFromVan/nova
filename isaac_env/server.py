@@ -22,6 +22,7 @@ import torch
 import grpc
 import time
 import threading
+import queue
 import importlib.metadata as metadata
 from concurrent import futures
 
@@ -37,29 +38,72 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg im
 
 TASK = "Isaac-Velocity-Rough-H1-v0"
 RL_LIBRARY = "rsl_rl"
-NUM_JOINTS = 19  # H1 关节数
+NUM_JOINTS = 19
+
+# PhysX 不是线程安全的，所有仿真操作必须在主线程执行
+# gRPC 线程通过此队列把工作提交给主线程
+_work_queue: queue.Queue = queue.Queue()
+
+
+class _WorkItem:
+    """单次仿真操作，gRPC 线程提交后阻塞等待结果"""
+    def __init__(self, fn):
+        self._fn = fn
+        self._done = threading.Event()
+        self.result = None
+        self.exc = None
+
+    def run(self):
+        try:
+            self.result = self._fn()
+        except Exception as e:
+            self.exc = e
+        finally:
+            self._done.set()
+
+    def wait(self):
+        self._done.wait()
+        if self.exc:
+            raise self.exc
+        return self.result
 
 
 def build_env():
-    """初始化 H1 环境和策略"""
-    # 加载 agent 配置
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
     agent_cfg = load_cfg_from_registry(TASK, "rsl_rl_cfg_entry_point")
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
 
-    # 创建环境（单环境，用于 gRPC 控制）
     env_cfg = H1RoughEnvCfg_PLAY()
     env_cfg.scene.num_envs = 1
     env_cfg.episode_length_s = 1_000_000
     env_cfg.curriculum = None
+    env_cfg.sim.device = "cuda:0"
 
     env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
     device = env.unwrapped.device
 
-    # 加载预训练策略
     checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=device)
-    runner.load(checkpoint)
+    loaded = torch.load(checkpoint, map_location=device)
+
+    src = loaded.get("model_state_dict", loaded.get("actor_state_dict", {}))
+    if any(k.startswith("actor.") for k in src):
+        actor_sd, critic_sd = {}, {}
+        for k, v in src.items():
+            if k.startswith("actor."):
+                actor_sd["mlp." + k[len("actor."):]] = v
+            elif k.startswith("critic."):
+                critic_sd["mlp." + k[len("critic."):]] = v
+            elif k == "std":
+                actor_sd["distribution.std_param"] = v
+        loaded["actor_state_dict"]  = actor_sd
+        loaded["critic_state_dict"] = critic_sd
+        loaded.pop("model_state_dict", None)
+
+    patched = checkpoint + ".patched.pt"
+    torch.save(loaded, patched)
+    runner.load(patched)
     policy = runner.get_inference_policy(device=device)
 
     return env, policy, device
@@ -72,30 +116,23 @@ class SimulatorServicer(simulator_pb2_grpc.SimulatorServicer):
         self.policy = policy
         self.device = device
         self.obs = None
-        self._lock = threading.Lock()
 
-        # 初始 reset
-        obs, _ = self.env.reset()
-        self.obs = obs
+        # 初始 reset 也必须在主线程，这里通过工作队列提交
+        item = _WorkItem(self._do_reset)
+        _work_queue.put(item)
+        item.wait()
         print("[Server] 环境就绪，等待 gRPC 指令...")
 
     def _state_to_proto(self):
-        """把当前机器人状态转成 SensorData proto"""
         robot = self.env.unwrapped.scene["robot"]
         d = robot.data
-
-        pos = d.root_pos_w[0]       # (3,)
-        quat = d.root_quat_w[0]     # (4,) xyzw
-        vel = d.root_lin_vel_w[0]   # (3,)
-        ang = d.root_ang_vel_w[0]   # (3,)
-        jpos = d.joint_pos[0]       # (19,)
-        jvel = d.joint_vel[0]       # (19,)
-
-        # 足部接触：用躯干高度估算（z > 0.3 认为站立）
-        left_contact = bool(pos[2].item() > 0.3)
-        right_contact = bool(pos[2].item() > 0.3)
-        is_stable = bool(pos[2].item() > 0.3)
-
+        pos  = d.root_pos_w[0]
+        quat = d.root_quat_w[0]
+        vel  = d.root_lin_vel_w[0]
+        ang  = d.root_ang_vel_w[0]
+        jpos = d.joint_pos[0]
+        jvel = d.joint_vel[0]
+        stable = bool(pos[2].item() > 0.3)
         return simulator_pb2.SensorData(
             timestamp=time.time(),
             position=simulator_pb2.Vec3(x=pos[0].item(), y=pos[1].item(), z=pos[2].item()),
@@ -107,30 +144,36 @@ class SimulatorServicer(simulator_pb2_grpc.SimulatorServicer):
             angular_velocity=simulator_pb2.Vec3(x=ang[0].item(), y=ang[1].item(), z=ang[2].item()),
             joint_angles=[jpos[i].item() for i in range(NUM_JOINTS)],
             joint_velocities=[jvel[i].item() for i in range(NUM_JOINTS)],
-            foot_contacts=[left_contact, right_contact],
-            is_stable=is_stable,
+            foot_contacts=[stable, stable],
+            is_stable=stable,
         )
 
+    def _do_step(self, request):
+        dv = request.desired_velocity
+        if dv is not None:
+            self.obs[:, 9]  = dv.x
+            self.obs[:, 10] = dv.y
+            self.obs[:, 11] = dv.z
+        with torch.inference_mode():
+            action = self.policy(self.obs)
+        self.obs, _, _, _ = self.env.step(action)
+        return self._state_to_proto()
+
+    def _do_reset(self):
+        obs, _ = self.env.reset()
+        self.obs = obs
+        return self._state_to_proto()
+
+    def _dispatch(self, fn):
+        item = _WorkItem(fn)
+        _work_queue.put(item)
+        return item.wait()
+
     def Step(self, request, context):
-        with self._lock:
-            # 如果 Rust 发来了期望速度，注入到观测的 velocity_commands（索引 9:12）
-            dv = request.desired_velocity
-            if dv is not None:
-                self.obs[:, 9] = dv.x   # lin_vel_x
-                self.obs[:, 10] = dv.y  # lin_vel_y
-                self.obs[:, 11] = dv.z  # ang_vel_z
-
-            with torch.inference_mode():
-                action = self.policy(self.obs)
-                self.obs, _, _, _ = self.env.step(action)
-
-            return self._state_to_proto()
+        return self._dispatch(lambda: self._do_step(request))
 
     def Reset(self, request, context):
-        with self._lock:
-            obs, _ = self.env.reset()
-            self.obs = obs
-            return self._state_to_proto()
+        return self._dispatch(self._do_reset)
 
     def StreamStep(self, request_iterator, context):
         for request in request_iterator:
@@ -154,9 +197,17 @@ if __name__ == "__main__":
     env, policy, device = build_env()
     server = serve(env, policy, device)
 
-    # 主循环：保持 simulation_app 运行
     try:
         while simulation_app.is_running():
+            # 先把队列里所有待执行的仿真操作跑完（在主线程）
+            while True:
+                try:
+                    item = _work_queue.get_nowait()
+                    item.run()
+                except queue.Empty:
+                    break
+            # 保持 UI / 渲染响应；env.step() 内部已调用 sim.step()，
+            # 空闲时才调用 update() 维持窗口
             simulation_app.update()
     except KeyboardInterrupt:
         pass
