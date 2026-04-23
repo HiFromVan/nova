@@ -36,8 +36,7 @@ async fn main() {
 
     // ── 硬件接口 ──────────────────────────────────────────────────────────────
     let robot: Box<dyn robot::RobotIO> = if args.real {
-        println!("[nova] 模式: 真机 DDS (domain={})", args.domain);
-        Box::new(robot::unitree::UnitreeRobot::new(args.domain))
+        panic!("真机模式暂时不可用 - DDS 兼容性问题待修复，请使用仿真模式");
     } else {
         println!("[nova] 模式: 仿真 gRPC ({})", args.sim_addr);
         let addr: &'static str = Box::leak(args.sim_addr.into_boxed_str());

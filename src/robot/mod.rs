@@ -9,4 +9,5 @@ pub trait RobotIO: Send {
 }
 
 pub mod sim;
-pub mod unitree;
+// TODO: 修复 dust_dds 兼容性问题后再启用
+// pub mod unitree;

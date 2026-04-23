@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex};
 use tonic::{transport::Server, Request, Response, Status};
 use tokio::sync::watch;
+use tokio_stream::StreamExt;
 
-use crate::brain_interface::{MotorCommands, SensorData};
+use crate::brain_interface::SensorData;
 
 pub mod proto {
     tonic::include_proto!("nova.control");
@@ -94,7 +94,7 @@ impl NovaControl for NovaControlService {
         Ok(Response::new(state))
     }
 
-    type SubscribeStream = tokio_stream::wrappers::WatchStream<RobotState>;
+    type SubscribeStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<RobotState, Status>> + Send>>;
 
     async fn subscribe(
         &self,
@@ -108,7 +108,9 @@ impl NovaControl for NovaControlService {
                 let _ = tx.send(sensor_to_proto(&state_rx.borrow()));
             }
         });
-        Ok(Response::new(tokio_stream::wrappers::WatchStream::new(rx)))
+        let stream = tokio_stream::wrappers::WatchStream::new(rx)
+            .map(|state| Ok(state));
+        Ok(Response::new(Box::pin(stream)))
     }
 }
 
