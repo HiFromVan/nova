@@ -116,11 +116,8 @@ class SimulatorServicer(simulator_pb2_grpc.SimulatorServicer):
         self.policy = policy
         self.device = device
         self.obs = None
-
-        # 初始 reset 也必须在主线程，这里通过工作队列提交
-        item = _WorkItem(self._do_reset)
-        _work_queue.put(item)
-        item.wait()
+        # 初始 reset 在主线程直接执行（此时主循环还未启动，不能走队列）
+        self._do_reset()
         print("[Server] 环境就绪，等待 gRPC 指令...")
 
     def _state_to_proto(self):
