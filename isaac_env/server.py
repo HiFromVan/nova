@@ -146,24 +146,15 @@ class SimulatorServicer(simulator_pb2_grpc.SimulatorServicer):
         )
 
     def _do_step(self, request):
-        # 如果 Nova 发送了关节角度，直接使用（高层模式）
-        if request.joint_targets and len(request.joint_targets) > 0:
-            # Nova 发送的是 8 个关节，需要映射到 Isaac Lab 的 19 个关节
-            # 暂时只使用前 8 个关节，其余保持当前值
-            action = torch.zeros((1, NUM_JOINTS), device=self.device)
-            for i, target in enumerate(request.joint_targets[:min(8, NUM_JOINTS)]):
-                action[0, i] = target
-            print(f"[Server] 使用 Nova 关节角度: {request.joint_targets[:4]}")
-        else:
-            # 否则使用 RL policy（fallback）
-            dv = request.desired_velocity
-            if dv is not None:
-                self.obs[:, 9]  = dv.x
-                self.obs[:, 10] = dv.y
-                self.obs[:, 11] = dv.z
-            with torch.inference_mode():
-                action = self.policy(self.obs)
-            print(f"[Server] 使用 RL policy，速度: ({dv.x if dv else 0:.2f}, {dv.y if dv else 0:.2f}, {dv.z if dv else 0:.2f})")
+        dv = request.desired_velocity
+        if dv is not None:
+            self.obs[:, 9]  = dv.x
+            self.obs[:, 10] = dv.y
+            self.obs[:, 11] = dv.z
+        with torch.inference_mode():
+            action = self.policy(self.obs)
+        self.obs, _, _, _ = self.env.step(action)
+        return self._state_to_proto()
 
         self.obs, _, _, _ = self.env.step(action)
         return self._state_to_proto()
