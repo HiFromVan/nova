@@ -35,8 +35,7 @@ pub async fn run(
 
         // 读取最新 Becoming 指令（非阻塞）
         if cmd_rx.has_changed().unwrap_or(false) {
-            let _ = cmd_rx.changed().await;
-            match cmd_rx.borrow().clone() {
+            match cmd_rx.borrow_and_update().clone() {
                 BecomingCmd::Move { vx, vy, wz } => {
                     target_vel = [vx, vy, wz];
                     e2e_action = None;
